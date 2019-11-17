@@ -19,6 +19,8 @@ import (
 )
 
 const baseUrl = "https://localhost:8000"
+const postUrl = baseUrl + "/messages"
+const topicUrl = baseUrl + "/topics"
 
 var httpVersion = flag.Int("version", 2, "HTTP version")
 
@@ -48,13 +50,7 @@ func tlsConfig() *tls.Config {
 	return tlsConfig
 }
 
-func GetTopics() {
-
-}
-
 func SendMessage(msg string) {
-	postUrl := baseUrl + "/messages"
-
 	reqBody, err := json.Marshal(h2chat.Message{
 		Name:    "Test name",
 		Message: msg,
@@ -70,7 +66,6 @@ func SendMessage(msg string) {
 	if err != nil {
 		log.Fatalf("Error posting message %s", err)
 	}
-
 	defer resp.Body.Close()
 	_, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -79,10 +74,58 @@ func SendMessage(msg string) {
 	// log.Printf("Response is %s", string(body))
 }
 
+func getTopics() []string {
+	client := getClient()
+	resp, err := client.Get(topicUrl)
+	if err != nil {
+		log.Fatalf("Error fetching channels %s", err)
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalf("Failed reading response body: %s", err)
+	}
+	log.Printf("Response is %s", string(body))
+
+	var topics []string
+	err = json.Unmarshal(body, &topics)
+	if err != nil {
+		log.Fatalf("Failed parsing topic response body: %s", err)
+	}
+	return topics
+}
+
 func getClient() *http.Client {
 	client := &http.Client{}
 	client.Transport = httpTrans
 	return client
+}
+
+// Max returns the larger of x or y.
+func Max(x, y int) int {
+	if x < y {
+		return y
+	}
+	return x
+}
+
+// Min returns the smaller of x or y.
+func Min(x, y int) int {
+	if x > y {
+		return y
+	}
+	return x
+}
+
+func setSelected(inc int, list *tui.List) {
+	current := list.Selected()
+	if inc < 0 {
+		current = Max(current+inc, 0)
+	} else {
+		current = Min(current+inc, list.Length()-1)
+	}
+	list.Select(current)
 }
 
 func main() {
@@ -91,15 +134,20 @@ func main() {
 	eventClient := sse.NewClient(baseUrl + "/events")
 	eventClient.Connection.Transport = httpTrans
 
+	topics := getTopics()
+
 	// GUI
 
+	tList := tui.NewList()
+
+	for _, a := range topics {
+		tList.AddItems(a)
+	}
+
+	tList.Select(0)
+
 	sidebar := tui.NewVBox(
-		tui.NewLabel("CHANNELS"),
-		tui.NewLabel("general"),
-		tui.NewLabel("random"),
-		tui.NewLabel(""),
-		tui.NewLabel("DIRECT MESSAGES"),
-		tui.NewLabel("slackbot"),
+		tList,
 		tui.NewSpacer(),
 	)
 	sidebar.SetBorder(true)
@@ -141,6 +189,9 @@ func main() {
 	ui.SetKeybinding("Esc", func() { ui.Quit() })
 	ui.SetKeybinding("Up", func() { historyScroll.Scroll(0, -1) })
 	ui.SetKeybinding("Down", func() { historyScroll.Scroll(0, 1) })
+
+	ui.SetKeybinding("PgUp", func() { setSelected(-1, tList) })
+	ui.SetKeybinding("PgDn", func() { setSelected(1, tList) })
 
 	go func() {
 		eventClient.Subscribe("default", func(msg *sse.Event) {
