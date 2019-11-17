@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jbrady42/h2chat"
+	"github.com/marcusolsson/tui-go"
 	"github.com/r3labs/sse"
 	"golang.org/x/net/http2"
 )
@@ -57,6 +58,8 @@ func SendMessage(msg string) {
 	reqBody, err := json.Marshal(h2chat.Message{
 		Name:    "Test name",
 		Message: msg,
+		Time:    time.Now(),
+		Topic:   "default",
 	})
 	if err != nil {
 		log.Fatalf("Error encoding message %s", err)
@@ -85,22 +88,64 @@ func getClient() *http.Client {
 func main() {
 	flag.Parse()
 
-	go func() {
-		time.Sleep(time.Second)
-
-		var c = 0
-		for {
-			time.Sleep(time.Second)
-			SendMessage(fmt.Sprintf("Testing %d", c))
-			c += 1
-		}
-	}()
-
 	eventClient := sse.NewClient(baseUrl + "/events")
 	eventClient.Connection.Transport = httpTrans
 
-	eventClient.Subscribe("messages", func(msg *sse.Event) {
-		// Got some data!
-		fmt.Println(string(msg.Data))
+	history := tui.NewVBox()
+
+	historyScroll := tui.NewScrollArea(history)
+
+	historyBox := tui.NewVBox(historyScroll)
+	historyBox.SetBorder(true)
+
+	input := tui.NewEntry()
+	input.SetFocused(true)
+	input.SetSizePolicy(tui.Expanding, tui.Maximum)
+
+	inputBox := tui.NewHBox(input)
+	inputBox.SetBorder(true)
+	inputBox.SetSizePolicy(tui.Expanding, tui.Maximum)
+
+	root := tui.NewVBox(historyBox, inputBox)
+	root.SetSizePolicy(tui.Expanding, tui.Expanding)
+
+	input.OnSubmit(func(e *tui.Entry) {
+		if e.Text() == "" {
+			return // Skip empty messages
+		}
+		SendMessage(e.Text())
+		input.SetText("")
 	})
+
+	ui, err := tui.New(root)
+	if err != nil {
+		log.Fatalf("Cant create UI %s", err)
+	}
+
+	ui.SetKeybinding("Esc", func() { ui.Quit() })
+	ui.SetKeybinding("Up", func() { historyScroll.Scroll(0, -1) })
+	ui.SetKeybinding("Down", func() { historyScroll.Scroll(0, 1) })
+
+	go func() {
+		eventClient.Subscribe("default", func(msg *sse.Event) {
+			var post h2chat.Message
+			err := json.Unmarshal(msg.Data, &post)
+			if err != nil {
+				log.Fatalf("Failed decoding incoming message %v", err)
+			}
+
+			history.Append(tui.NewHBox(
+				tui.NewLabel(post.Time.Format(time.Kitchen)),
+				tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", post.Name))),
+				tui.NewLabel(post.Message),
+				tui.NewSpacer(),
+			))
+
+			ui.Update(func() {})
+		})
+	}()
+
+	if err := ui.Run(); err != nil {
+		log.Fatal(err)
+	}
 }

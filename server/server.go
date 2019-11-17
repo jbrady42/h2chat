@@ -11,18 +11,27 @@ import (
 )
 
 type h2Server struct {
-	sse *sse.Server
+	sse      *sse.Server
+	channels []string
 }
 
 func main() {
 
+	channels := []string{"default", "other"}
 	sseServer := sse.New()
-	sseServer.CreateStream("messages")
 
-	server := h2Server{sseServer}
+	server := h2Server{
+		sseServer,
+		channels,
+	}
+
+	for _, a := range channels {
+		sseServer.CreateStream(a)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/events", sseServer.HTTPHandler)
+	mux.HandleFunc("/topics", http.HandlerFunc(server.handleListChannels))
 	mux.HandleFunc("/messages", http.HandlerFunc(server.handleMessage))
 	mux.HandleFunc("/", http.HandlerFunc(handle))
 
@@ -44,6 +53,18 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello"))
 }
 
+func (t *h2Server) handleListChannels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.NotFound(w, r)
+		return
+	}
+	res, err := json.Marshal(t.channels)
+	if err != nil {
+		log.Fatalf("Failed parsing message body: %s", err)
+	}
+	w.Write(res)
+}
+
 func (t *h2Server) handleMessage(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "PUT" && r.Method != "POST" {
 		http.NotFound(w, r)
@@ -62,13 +83,24 @@ func (t *h2Server) handleMessage(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("Failed parsing message body: %s", err)
 	}
 
-	log.Println(msg)
-	// Log the request protocol
-	log.Printf("Got connection: %s", r.Proto)
+	// log.Println(msg)
+	// // Log the request protocol
+	// log.Printf("Got connection: %s", r.Proto)
 	// Send a message back to the client
 	w.Write([]byte("OK"))
 
-	t.sse.Publish("messages", &sse.Event{
-		Data: []byte(msg.Message),
-	})
+	if t.channelExists(msg.Topic) {
+		t.sse.Publish(msg.Topic, &sse.Event{
+			Data: body,
+		})
+	}
+}
+
+func (t *h2Server) channelExists(str string) bool {
+	for _, a := range t.channels {
+		if a == str {
+			return true
+		}
+	}
+	return false
 }
