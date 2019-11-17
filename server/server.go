@@ -1,32 +1,29 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 
-	_ "github.com/jbrady42/h2chat"
+	"github.com/jbrady42/h2chat"
 	"github.com/r3labs/sse"
 )
 
+type h2Server struct {
+	sse *sse.Server
+}
+
 func main() {
 
-	server := sse.New()
-	server.CreateStream("messages")
+	sseServer := sse.New()
+	sseServer.CreateStream("messages")
 
-	// go func(s *sse.Server) {
-	// 	var c = 0
-	// 	for {
-	// 		time.Sleep(time.Second)
-	// 		server.Publish("messages", &sse.Event{
-	// 			Data: []byte(fmt.Sprintf("tick %d", c)),
-	// 		})
-	// 		c += 1
-	// 	}
-	// }(server)
+	server := h2Server{sseServer}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/events", server.HTTPHandler)
-	mux.HandleFunc("/messages", http.HandlerFunc(handleMessage))
+	mux.HandleFunc("/events", sseServer.HTTPHandler)
+	mux.HandleFunc("/messages", http.HandlerFunc(server.handleMessage))
 	mux.HandleFunc("/", http.HandlerFunc(handle))
 
 	// Create a server on port 8000
@@ -47,15 +44,31 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello"))
 }
 
-func handleMessage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "PUT" {
+func (t *h2Server) handleMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "PUT" && r.Method != "POST" {
 		http.NotFound(w, r)
 		return
 	}
 
-	m := h2chat.Message{}
+	defer r.Body.Close()
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Fatalf("Failed reading message body: %s", err)
+	}
+
+	var msg h2chat.Message
+	err = json.Unmarshal(body, &msg)
+	if err != nil {
+		log.Fatalf("Failed parsing message body: %s", err)
+	}
+
+	log.Println(msg)
 	// Log the request protocol
 	log.Printf("Got connection: %s", r.Proto)
 	// Send a message back to the client
-	w.Write([]byte("Hello"))
+	w.Write([]byte("OK"))
+
+	t.sse.Publish("messages", &sse.Event{
+		Data: []byte(msg.Message),
+	})
 }

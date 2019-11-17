@@ -10,7 +10,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 
+	"github.com/jbrady42/h2chat"
 	"github.com/r3labs/sse"
 	"golang.org/x/net/http2"
 )
@@ -52,9 +54,9 @@ func GetTopics() {
 func SendMessage(msg string) {
 	postUrl := baseUrl + "/messages"
 
-	reqBody, err := json.Marshal(map[string]string{
-		"name":    "Test name",
-		"message": msg,
+	reqBody, err := json.Marshal(h2chat.Message{
+		Name:    "Test name",
+		Message: msg,
 	})
 	if err != nil {
 		log.Fatalf("Error encoding message %s", err)
@@ -67,11 +69,11 @@ func SendMessage(msg string) {
 	}
 
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	_, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatalf("Failed reading response body: %s", err)
 	}
-	log.Printf("Response is %s", string(body))
+	// log.Printf("Response is %s", string(body))
 }
 
 func getClient() *http.Client {
@@ -82,6 +84,17 @@ func getClient() *http.Client {
 
 func main() {
 	flag.Parse()
+
+	go func() {
+		time.Sleep(time.Second)
+
+		var c = 0
+		for {
+			time.Sleep(time.Second)
+			SendMessage(fmt.Sprintf("Testing %d", c))
+			c += 1
+		}
+	}()
 
 	eventClient := sse.NewClient(baseUrl + "/events")
 	eventClient.Connection.Transport = httpTrans

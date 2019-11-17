@@ -1,9 +1,9 @@
-package h2_chat
+package h2chat
 
 import "time"
 
 type Message struct {
-	name      String
-	message   String
+	Name      string
+	Message   string
 	Timestamp time.Time
 }
