@@ -26,6 +26,13 @@ var httpVersion = flag.Int("version", 2, "HTTP version")
 
 var httpTrans *http2.Transport
 
+type client struct {
+	eventClient *sse.Client
+	events      chan *sse.Event
+	ui          tui.UI
+	history     *tui.Box
+}
+
 func init() {
 	httpTrans = &http2.Transport{
 		TLSClientConfig: tlsConfig(),
@@ -128,6 +135,36 @@ func setSelected(inc int, list *tui.List) {
 	list.Select(current)
 }
 
+func (t *client) subscribeTopic(topic string) {
+	events := make(chan *sse.Event)
+	err := t.eventClient.SubscribeChan(topic, events)
+	if err != nil {
+		log.Fatalf("Cant create listener %s", err)
+	}
+	t.events = events
+
+	go t.handleMessages(events)
+}
+
+func (t *client) handleMessages(events chan *sse.Event) {
+	for msg := range events {
+		var post h2chat.Message
+		err := json.Unmarshal(msg.Data, &post)
+		if err != nil {
+			log.Fatalf("Failed decoding incoming message %v", err)
+		}
+
+		t.ui.Update(func() {
+			t.history.Append(tui.NewHBox(
+				tui.NewLabel(post.Time.Format(time.Kitchen)),
+				tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", post.Name))),
+				tui.NewLabel(post.Message),
+				tui.NewSpacer(),
+			))
+		})
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -193,24 +230,10 @@ func main() {
 	ui.SetKeybinding("PgUp", func() { setSelected(-1, tList) })
 	ui.SetKeybinding("PgDn", func() { setSelected(1, tList) })
 
-	go func() {
-		eventClient.Subscribe("default", func(msg *sse.Event) {
-			var post h2chat.Message
-			err := json.Unmarshal(msg.Data, &post)
-			if err != nil {
-				log.Fatalf("Failed decoding incoming message %v", err)
-			}
+	client := client{eventClient, nil, ui, history}
 
-			history.Append(tui.NewHBox(
-				tui.NewLabel(post.Time.Format(time.Kitchen)),
-				tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", post.Name))),
-				tui.NewLabel(post.Message),
-				tui.NewSpacer(),
-			))
-
-			ui.Update(func() {})
-		})
-	}()
+	// Not blocking
+	client.subscribeTopic("default")
 
 	if err := ui.Run(); err != nil {
 		log.Fatal(err)
