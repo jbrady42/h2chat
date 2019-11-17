@@ -91,9 +91,23 @@ func main() {
 	eventClient := sse.NewClient(baseUrl + "/events")
 	eventClient.Connection.Transport = httpTrans
 
+	// GUI
+
+	sidebar := tui.NewVBox(
+		tui.NewLabel("CHANNELS"),
+		tui.NewLabel("general"),
+		tui.NewLabel("random"),
+		tui.NewLabel(""),
+		tui.NewLabel("DIRECT MESSAGES"),
+		tui.NewLabel("slackbot"),
+		tui.NewSpacer(),
+	)
+	sidebar.SetBorder(true)
+
 	history := tui.NewVBox()
 
 	historyScroll := tui.NewScrollArea(history)
+	historyScroll.SetAutoscrollToBottom(true)
 
 	historyBox := tui.NewVBox(historyScroll)
 	historyBox.SetBorder(true)
@@ -106,8 +120,10 @@ func main() {
 	inputBox.SetBorder(true)
 	inputBox.SetSizePolicy(tui.Expanding, tui.Maximum)
 
-	root := tui.NewVBox(historyBox, inputBox)
-	root.SetSizePolicy(tui.Expanding, tui.Expanding)
+	chat := tui.NewVBox(historyBox, inputBox)
+	chat.SetSizePolicy(tui.Expanding, tui.Expanding)
+
+	root := tui.NewHBox(sidebar, chat)
 
 	input.OnSubmit(func(e *tui.Entry) {
 		if e.Text() == "" {
