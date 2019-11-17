@@ -16,10 +16,15 @@ const url = "https://localhost:8000"
 
 var httpVersion = flag.Int("version", 2, "HTTP version")
 
-func main() {
-	flag.Parse()
-	client := &http.Client{}
+var httpTrans *http2.Transport
 
+func init() {
+	httpTrans = &http2.Transport{
+		TLSClientConfig: tlsConfig(),
+	}
+}
+
+func tlsConfig() *tls.Config {
 	// Create a pool with the server certificate since it is not signed
 	// by a known CA
 	caCert, err := ioutil.ReadFile("certs/server.crt")
@@ -34,17 +39,26 @@ func main() {
 		RootCAs: caCertPool,
 	}
 
-	// Use the proper transport in the client
-	switch *httpVersion {
-	case 1:
-		client.Transport = &http.Transport{
-			TLSClientConfig: tlsConfig,
-		}
-	case 2:
-		client.Transport = &http2.Transport{
-			TLSClientConfig: tlsConfig,
-		}
-	}
+	return tlsConfig
+}
+
+func GetTopics() {
+
+}
+
+func SendMessage() {
+
+}
+
+func getClient() *http.Client {
+	client := &http.Client{}
+	client.Transport = httpTrans
+	return client
+}
+
+func main() {
+	flag.Parse()
+	client := getClient()
 
 	// Perform the request
 	resp, err := client.Get(url)
