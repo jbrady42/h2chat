@@ -1,8 +1,13 @@
 github.com/andrewburian/eventsource v2.1.0+incompatible h1:cUq6xz31mAL3Sprc/bNcfuNvhmxuEcbV/RnXk+7HoZ0=
 github.com/andrewburian/eventsource v2.1.0+incompatible/go.mod h1:dJlPwBi1aeIJfi4evd2zxy2eUW6kF3BgPEf6SzztqUA=
+github.com/jbrady42/h2chat v0.0.0-20191117001049-ffff7f1cf026 h1:mkxS/rNlzaUq4BE3Q6qa8LGmLySOoORsD+5UqeQHMow=
+github.com/r3labs/sse v0.0.0-20191018093120-b8132ebb4c21 h1:KKwfO2BC17AdU/g9CIn9bhWdnrYNGNrNr3wDkYn/AWw=
+github.com/r3labs/sse v0.0.0-20191018093120-b8132ebb4c21/go.mod h1:GFTLGeO4uhsAhDsI1GgKFTegVYuNZ6g5qJ15Mheq7cI=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/net v0.0.0-20191116160921-f9c825593386 h1:ktbWvQrW08Txdxno1PiDpSxPXG6ndGsfnJjRRtkM0LQ=
 golang.org/x/net v0.0.0-20191116160921-f9c825593386/go.mod h1:z5CRVTTTmAJ677TzLLGU+0bjPO0LkuOLi4/5GtJWs/s=
 golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/text v0.3.0 h1:g61tztE5qeGQ89tm6NTjjM9VPIm088od1l6aSorWRWg=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
+gopkg.in/cenkalti/backoff.v1 v1.1.0 h1:Arh75ttbsvlpVA7WtVpH4u9h6Zl46xuptxqLxPiSo4Y=
+gopkg.in/cenkalti/backoff.v1 v1.1.0/go.mod h1:J6Vskwqd+OMVJl8C33mmtxTBs2gyzfv7UDAkHu8BrjI=

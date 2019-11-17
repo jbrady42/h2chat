@@ -1,29 +1,32 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"time"
 
-	"github.com/andrewburian/eventsource"
+	_ "github.com/jbrady42/h2chat"
+	"github.com/r3labs/sse"
 )
 
 func main() {
 
-	stream := eventsource.NewStream()
+	server := sse.New()
+	server.CreateStream("messages")
 
-	go func(s *eventsource.Stream) {
-		var c = 0
-		for {
-			time.Sleep(time.Second)
-			stream.Broadcast(eventsource.DataEvent(fmt.Sprintf("tick %d", c)))
-			c += 1
-		}
-	}(stream)
+	// go func(s *sse.Server) {
+	// 	var c = 0
+	// 	for {
+	// 		time.Sleep(time.Second)
+	// 		server.Publish("messages", &sse.Event{
+	// 			Data: []byte(fmt.Sprintf("tick %d", c)),
+	// 		})
+	// 		c += 1
+	// 	}
+	// }(server)
 
 	mux := http.NewServeMux()
-	mux.Handle("/stream1", stream)
+	mux.HandleFunc("/events", server.HTTPHandler)
+	mux.HandleFunc("/messages", http.HandlerFunc(handleMessage))
 	mux.HandleFunc("/", http.HandlerFunc(handle))
 
 	// Create a server on port 8000
@@ -38,6 +41,19 @@ func main() {
 }
 
 func handle(w http.ResponseWriter, r *http.Request) {
+	// Log the request protocol
+	log.Printf("Got connection: %s", r.Proto)
+	// Send a message back to the client
+	w.Write([]byte("Hello"))
+}
+
+func handleMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "PUT" {
+		http.NotFound(w, r)
+		return
+	}
+
+	m := h2chat.Message{}
 	// Log the request protocol
 	log.Printf("Got connection: %s", r.Proto)
 	// Send a message back to the client

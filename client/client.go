@@ -1,18 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 
+	"github.com/r3labs/sse"
 	"golang.org/x/net/http2"
 )
 
-const url = "https://localhost:8000"
+const baseUrl = "https://localhost:8000"
 
 var httpVersion = flag.Int("version", 2, "HTTP version")
 
@@ -46,8 +49,29 @@ func GetTopics() {
 
 }
 
-func SendMessage() {
+func SendMessage(msg string) {
+	postUrl := baseUrl + "/messages"
 
+	reqBody, err := json.Marshal(map[string]string{
+		"name":    "Test name",
+		"message": msg,
+	})
+	if err != nil {
+		log.Fatalf("Error encoding message %s", err)
+	}
+
+	client := getClient()
+	resp, err := client.Post(postUrl, "application/json", bytes.NewBuffer(reqBody))
+	if err != nil {
+		log.Fatalf("Error posting message %s", err)
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalf("Failed reading response body: %s", err)
+	}
+	log.Printf("Response is %s", string(body))
 }
 
 func getClient() *http.Client {
@@ -58,19 +82,12 @@ func getClient() *http.Client {
 
 func main() {
 	flag.Parse()
-	client := getClient()
 
-	// Perform the request
-	resp, err := client.Get(url)
-	if err != nil {
-		log.Fatalf("Failed get: %s", err)
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalf("Failed reading response body: %s", err)
-	}
-	fmt.Printf(
-		"Got response %d: %s %s\n",
-		resp.StatusCode, resp.Proto, string(body))
+	eventClient := sse.NewClient(baseUrl + "/events")
+	eventClient.Connection.Transport = httpTrans
+
+	eventClient.Subscribe("messages", func(msg *sse.Event) {
+		// Got some data!
+		fmt.Println(string(msg.Data))
+	})
 }
