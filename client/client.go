@@ -16,7 +16,7 @@ import (
 	"github.com/cznic/mathutil"
 	"github.com/jbrady42/h2chat"
 	"github.com/marcusolsson/tui-go"
-	"github.com/jbrady42/sse"
+	"github.com/r3labs/sse"
 	"golang.org/x/net/http2"
 )
 
@@ -42,6 +42,7 @@ type client struct {
 	currentTopic string
 	eventChan    chan *sse.Event
 	ui           *chatUI
+	messages     []h2chat.Message
 }
 
 type chatUI struct {
@@ -57,10 +58,11 @@ func NewClient(baseUrl string) client {
 	eventClient := sse.NewClient(baseUrl + "/events")
 	eventClient.Connection.Transport = httpTrans
 
+	var msgs []h2chat.Message
 	var topics []string
 	return client{
 		baseUrl, httpTrans, eventClient,
-		topics, "", nil, nil,
+		topics, "", nil, nil, msgs,
 	}
 }
 
@@ -80,6 +82,11 @@ func tlsConfig() *tls.Config {
 	}
 
 	return tlsConfig
+}
+
+func (t *client) resetMessages() {
+	var msg []h2chat.Message
+	t.messages = msg
 }
 
 func (t *client) SendMessage(msg string) {
@@ -156,18 +163,14 @@ func (t *client) subscribeTopic(topic string) {
 
 	// Unsubscribe first to prevent further UI updates
 	if t.eventChan != nil {
-		func(c chan *sse.Event) {
-			logger.Println("Start unsubscribe from old topic " + topic)
-			t.eventClient.Unsubscribe(c)
-			// close(c)
-		}(t.eventChan)
-		logger.Println("Unsubscribed from old topic " + topic)
+		t.eventClient.Unsubscribe(t.eventChan)
+		close(t.eventChan)
 		t.eventChan = nil
 	}
 
-	if topic == "default" {
-		return
-	}
+	// Clear history
+	t.resetMessages()
+
 	t.currentTopic = topic
 	events := make(chan *sse.Event)
 	err := t.eventClient.SubscribeChan(topic, events)
@@ -181,26 +184,40 @@ func (t *client) subscribeTopic(topic string) {
 
 func (t *client) handleMessages(events chan *sse.Event) {
 	for msg := range events {
-		logger.Println("Got message " + string(msg.Data))
+		logger.Print(".")
 		var post h2chat.Message
 		err := json.Unmarshal(msg.Data, &post)
 		if err != nil {
 			log.Fatalf("Failed decoding incoming message %v", err)
 		}
-		t.ui.updateMessages(post)
+		if post.Topic == t.currentTopic {
+			t.messages = append(t.messages, post)
+			t.updateUI()
+		}
 	}
 }
 
-func (t *chatUI) updateMessages(post h2chat.Message) {
-	t.ui.Update(func() {
-		t.history.Append(tui.NewHBox(
-			tui.NewLabel(post.Time.Format(time.Kitchen)),
-			tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", post.Name))),
-			tui.NewLabel(post.Message),
-			tui.NewSpacer(),
-		))
+func (t *client) updateUI() {
+	t.ui.ui.Update(func() {
+		clearBox(t.ui.history)
+
+		//Repaint
+		for _, msg := range t.messages {
+			t.ui.history.Append(tui.NewHBox(
+				tui.NewLabel(msg.Time.Format(time.Kitchen)),
+				tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", msg.Name))),
+				tui.NewLabel(msg.Message),
+				tui.NewSpacer(),
+			))
+		}
 	})
-	// t.ui.Update(func() {})
+}
+
+func clearBox(box *tui.Box) {
+	len := box.Length()
+	for a := 0; a < len; a++ {
+		box.Remove(a)
+	}
 }
 
 func main() {
@@ -283,12 +300,6 @@ func main() {
 		ui.Update(func() {
 			tList.Select(1)
 		})
-		//
-		// time.Sleep(30 * time.Second)
-		// client.eventClient.Unsubscribe(client.eventChan)
-		//
-		// time.Sleep(30 * time.Second)
-		// client.subscribeTopic(client.currentTopic)
 	}()
 
 	if err := ui.Run(); err != nil {
