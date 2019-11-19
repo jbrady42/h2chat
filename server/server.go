@@ -83,17 +83,15 @@ func (t *h2Server) handleMessage(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("Failed parsing message body: %s", err)
 	}
 
-	// log.Println(msg)
-	// // Log the request protocol
-	// log.Printf("Got connection: %s", r.Proto)
-	// Send a message back to the client
 	w.Write([]byte("OK"))
 
-	if t.channelExists(msg.Topic) {
-		t.sse.Publish(msg.Topic, &sse.Event{
-			Data: body,
-		})
+	// Bail if no channel
+	if !t.channelExists(msg.Topic) {
+		return
 	}
+	t.sse.Publish(msg.Topic, &sse.Event{
+		Data: body,
+	})
 }
 
 func (t *h2Server) channelExists(str string) bool {

@@ -10,5 +10,4 @@ require (
 	golang.org/x/net v0.0.0-20191116160921-f9c825593386
 )
 
-// replace github.com/r3labs/sse => github.com/jbrady42/sse v0.0.0 */
-replace github.com/r3labs/sse => /home/master/go/src/github.com/jbrady42/sse
+replace github.com/r3labs/sse => github.com/jbrady42/sse v1.7.0
